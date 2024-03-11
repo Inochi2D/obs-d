@@ -1,9 +1,10 @@
 module obs;
 import obs.config;
 import core.runtime;
+import obs.internal.obs;
 
-/// Reference to C OBS module.
-struct obs_module_t;
+public import obs.source;
+public import obs.log;
 
 /**
     Instantiates OBS module
@@ -11,6 +12,7 @@ struct obs_module_t;
 class OBSModule {
 private:
     obs_module_t* handle;
+    obs_source_info_t[] sources;
 
 public:
 
@@ -36,15 +38,15 @@ public:
     /// Called when the module is unloaded
     void freeLocale() {}
 
-    string getAuthor() {
+    const(char)* getAuthor() {
         return "unknown";
     }
 
-    string getName() {
+    const(char)* getName() {
         return "Untitled OBS Plugin";
     }
 
-    string getDescription() {
+    const(char)* getDescription() {
         return "My cool plugin";
     }
 
@@ -52,10 +54,28 @@ public:
     obs_module_t* getHandle() {
         return handle;
     }
+
+    final
+    void setHandle(obs_module_t* handle) {
+        this.handle = handle;
+    }
+
+    /**
+        Registers a source, should be called in constructor
+    */
+    final
+    void registerSource(T)() if (is(T : OBSSource)) {
+        sources ~= createSourceInfoFor!T();
+        obs_register_source(&sources[$-1]);
+    }
 }
 
-mixin template EntryPoint(alias obsModuleType) if (is(obsModuleType : OBSModule)) {
-    
+template EntryPoint(alias obsModuleType) if (is(obsModuleType : OBSModule)) {
+extern(C):
+    import obs.config;
+    import core.runtime;
+    import obs.internal.obs;
+
     // Internal info
     private {
         __gshared obs_module_t* __internal_obs_module_pointer;
@@ -72,14 +92,14 @@ mixin template EntryPoint(alias obsModuleType) if (is(obsModuleType : OBSModule)
     }
 
     export uint obs_module_ver() {
-        return LIBOBS_API_VER;
+        return LIBOBS_API_VERSION;
     }
 
     export bool obs_module_load() {
         bool initialized = Runtime.initialize();
         if (initialized) {
             __internal_module = new obsModuleType();
-            __internal_module.handle = __internal_obs_module_pointer;
+            __internal_module.setHandle(__internal_obs_module_pointer);
 
             return __internal_module.load();
         }
@@ -96,5 +116,17 @@ mixin template EntryPoint(alias obsModuleType) if (is(obsModuleType : OBSModule)
 
     export void obs_module_post_load() {
         __internal_module.postLoad();
+    }
+
+    export const(char)* obs_module_author() {
+        return __internal_module.getAuthor();
+    }
+
+    export const(char)* obs_module_name() {
+        return __internal_module.getName();
+    }
+
+    export const(char)* obs_module_description() {
+        return __internal_module.getDescription();
     }
 }

@@ -3,3 +3,7 @@ description "D binding to the OBS Plugin API"
 authors "Inochi2D Project"
 copyright "Copyright © 2024, Inochi2D Project"
 license "BSD-2-Clause"
+
+dependency "inmath" version="~>1.0.5"
+
+lflags "-F" "/Applications/OBS.app/Contents/Frameworks" "-framework" "libobs" platform="osx"
