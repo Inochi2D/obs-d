@@ -2,11 +2,17 @@ module obs.source;
 import obs.internal.source;
 import obs.internal.data;
 import obs.internal.obs;
+import obs.internal.graphics;
 import std.traits;
 import inmath;
 
 public import obs.internal.obs : obs_source_t;
 public import obs.internal.data : obs_data_t;
+public import obs.internal.source : 
+    OBS_SOURCE_AUDIO,
+    OBS_SOURCE_VIDEO,
+    OBS_SOURCE_ASYNC, 
+    OBS_SOURCE_ASYNC_VIDEO;
 
 enum OBSSourceType : obs_source_type_t {
     Input = obs_source_type_t.OBS_SOURCE_TYPE_INPUT,
@@ -57,18 +63,23 @@ struct OBSSourceInfo {
     uint version_;
     OBSIconType iconType;
     OBSSourceType sourceType;
+    uint flags;
 }
+
+struct OBSNoBind;
 
 class OBSSource {
 private:
-    obs_data_t* settings;
+    obs_data_t* data;
+    
+protected:
     obs_source_t* source;
 
 public:
 
-    this(obs_data_t* settings, obs_source_t* source) {
-        this.settings = settings;
+    this(obs_data_t* data, obs_source_t* source) {
         this.source = source;
+        this.data = data;
     }
 
     abstract uint getWidth();
@@ -361,6 +372,10 @@ final:
     void releaseFrame(obs_source_frame_t* frame) {
         obs_source_release_frame(source, frame);
     }
+
+    void draw(gs_texture_t* tex, rect area, bool flip) {
+        obs_source_draw(tex, cast(int)area.x, cast(int)area.y, cast(int)area.width, cast(int)area.height, flip);
+    }
 }
 
 obs_source_info_t createSourceInfoFor(T)() if (is(T : OBSSource)) {
@@ -371,6 +386,7 @@ obs_source_info_t createSourceInfoFor(T)() if (is(T : OBSSource)) {
     info.version_ = sourceInfo.version_;
     info.icon_type = cast(obs_icon_type_t) sourceInfo.iconType;
     info.type = cast(obs_source_type_t) sourceInfo.sourceType;
+    info.output_flags = sourceInfo.flags;
 
     info.create = function(obs_data_t* settings, obs_source_t* source) {
         import core.memory : GC;
@@ -381,9 +397,12 @@ obs_source_info_t createSourceInfoFor(T)() if (is(T : OBSSource)) {
         return cast(void*) src;
     };
 
-    info.destroy = (void* data) { import core.memory : GC;
+    info.destroy = (void* data) { 
+        import core.memory : GC;
 
-    GC.removeRoot(data); };
+        destroy!false(cast(T)data);
+        GC.removeRoot(data); 
+    };
 
     info.get_width = (void* data) { return (cast(OBSSource) data).getWidth(); };
 
@@ -397,13 +416,17 @@ obs_source_info_t createSourceInfoFor(T)() if (is(T : OBSSource)) {
 
     info.hide = (void* data) { (cast(OBSSource) data).onHidden(); };
 
-    info.video_tick = (void* data, float seconds) {
-        (cast(OBSSource) data).onVideoTick(seconds);
-    };
+    static if (!hasUDA!(T.onVideoTick, OBSNoBind)) {
+        info.video_tick = (void* data, float seconds) {
+            (cast(OBSSource) data).onVideoTick(seconds);
+        };
+    }
 
-    info.video_render = (void* data, gs_effect_t* effect) {
-        (cast(OBSSource) data).onVideoRender(effect);
-    };
+    static if (!hasUDA!(T.onVideoRender, OBSNoBind)) {
+        info.video_render = (void* data, gs_effect_t* effect) {
+            (cast(OBSSource) data).onVideoRender(effect);
+        };
+    }
 
     info.save = (void* data, obs_data_t* settings) {
         (cast(OBSSource) data).onSave(settings);

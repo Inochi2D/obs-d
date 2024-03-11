@@ -1,4 +1,7 @@
 module obs.internal.graphics;
+extern(C):
+
+struct gs_texture_t;
 
 enum gs_draw_mode_t {
 	GS_POINTS,
@@ -143,3 +146,10 @@ enum gs_texture_type_t {
 	GS_TEXTURE_3D,
 	GS_TEXTURE_CUBE,
 };
+
+export gs_texture_t* gs_texture_create(uint width, uint height,
+				       gs_color_format_t color_format,
+				       uint levels, const(ubyte*)* data,
+				       uint flags);
+
+export void gs_texture_set_image(gs_texture_t *tex, const(ubyte)* data, uint linesize, bool invert);

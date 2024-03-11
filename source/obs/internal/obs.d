@@ -43,7 +43,6 @@ struct lookup_t;
 struct proc_handler_t;
 struct obs_object_t;
 struct gs_effect_t;
-struct gs_texture_t;
 struct obs_missing_files_t;
 struct obs_key_event_t;
 struct obs_mouse_event_t;
